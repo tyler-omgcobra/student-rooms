@@ -32,4 +32,10 @@ out
 hs_err_pid*
 
 build/
+tomcat.8080/
 .gradle/
+.idea/
+out
+*.iml
+*.ipr
+*.iws
