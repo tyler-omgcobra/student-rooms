@@ -59,7 +59,7 @@ kotlin {
                 implementation("io.ktor:ktor-server-host-common:$ktorVersion")
                 implementation("io.ktor:ktor-serialization:$ktorVersion")
                 implementation("io.ktor:ktor-websockets:$ktorVersion")
-                implementation("io.ktor:ktor-server-tomcat:$ktorVersion")
+                implementation("io.ktor:ktor-server-netty:$ktorVersion")
 
                 implementation("org.jetbrains.kotlinx:kotlinx-html-jvm:0.7.2")
 
