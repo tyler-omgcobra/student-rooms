@@ -116,3 +116,18 @@ tasks.named<JavaExec>("run") {
     dependsOn(jvmJar)
     classpath(jvmJar)
 }
+
+distributions {
+    main {
+        contents {
+            from("$buildDir/libs") {
+                rename("${rootProject.name}-jvm", rootProject.name)
+                into("lib")
+            }
+        }
+    }
+}
+
+tasks.create("stage") {
+    dependsOn("installDist")
+}

@@ -9,7 +9,7 @@ import org.omgcobra.plugins.*
 @ExperimentalSerializationApi
 @KtorExperimentalLocationsAPI
 fun main() {
-  embeddedServer(Tomcat, port = 8080, host = "0.0.0.0") {
+  embeddedServer(Tomcat, port = System.getenv("PORT").toIntOrNull() ?: 8080) {
     configureCompression()
     configureCORS()
     configureSecurity()
