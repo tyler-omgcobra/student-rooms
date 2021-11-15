@@ -14,11 +14,13 @@ import io.ktor.websocket.*
 import kotlinx.html.HTML
 import kotlinx.serialization.*
 import kotlinx.serialization.json.Json
+import org.jetbrains.exposed.sql.transactions.transaction
 import org.omgcobra.*
+import org.omgcobra.db.Room
 import java.util.*
 
 @KtorExperimentalLocationsAPI
-private val rooms = mutableMapOf<String, Room>()
+private val rooms = mutableMapOf<String, OldRoom>()
 
 private val previousMessages = mutableListOf<ChatMessage>()
 private val connectionMap = Collections.synchronizedMap(mutableMapOf<WebSocketSession, String>())
@@ -68,28 +70,28 @@ fun Application.configureRouting() {
     }
 
     authenticate("auth-digest") {
-      get<Room.Create> {
+      get<OldRoom.Create> {
         val principal = call.principal<UserIdPrincipal>() ?: throw AuthenticationException()
-        when (rooms[it.room.name]) {
+        call.respondText(when (rooms[it.room.name]) {
           null -> {
             it.room.creator = principal.name
             rooms[it.room.name] = it.room
-            call.respondText("Now ${rooms.size} rooms are open")
+            "Now ${rooms.size} rooms are open"
           }
-          else -> call.respondText("That room already exists")
-        }
+          else -> "That room already exists"
+        })
       }
 
-      get<Room.Delete> {
+      get<OldRoom.Delete> {
         val principal = call.principal<UserIdPrincipal>() ?: throw AuthenticationException()
-        when (rooms[it.room.name]?.creator) {
+        call.respondText(when (rooms[it.room.name]?.creator) {
           principal.name -> {
             rooms.remove(it.room.name)
-            call.respondText("Now ${rooms.size} rooms are open")
+            "Now ${rooms.size} rooms are open"
           }
-          null           -> call.respondText("That room doesn't exist")
-          else           -> call.respondText("That isn't your room")
-        }
+          null           -> "That room doesn't exist"
+          else           -> "That isn't your room"
+        })
       }
     }
 
@@ -98,10 +100,11 @@ fun Application.configureRouting() {
     }
 
     get("/rooms") {
-      call.respond(rooms.keys)
+      val rooms = transaction { Room.all().map { "${it.name} : ${it.user.name}" } }
+      call.respond(rooms)
     }
 
-    get<Room> {
+    get<OldRoom> {
       call.respondText(
           when (val room = rooms[it.name]) {
             null -> "Room not found"
@@ -122,12 +125,12 @@ fun Application.configureRouting() {
 
 @KtorExperimentalLocationsAPI
 @Location("/room/{name}")
-class Room(val name: String, var creator: String = "system") {
+class OldRoom(val name: String, var creator: String = "system") {
   @Location("/create")
-  class Create(val room: Room)
+  class Create(val room: OldRoom)
 
   @Location("/delete")
-  class Delete(val room: Room)
+  class Delete(val room: OldRoom)
 }
 
 class AuthenticationException : RuntimeException()

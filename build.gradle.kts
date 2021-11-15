@@ -62,6 +62,14 @@ kotlin {
                 implementation("io.ktor:ktor-server-tomcat:$ktorVersion")
 
                 implementation("org.jetbrains.kotlinx:kotlinx-html-jvm:0.7.2")
+
+                implementation("org.jetbrains.exposed:exposed-core:0.35.1")
+                implementation("org.jetbrains.exposed:exposed-dao:0.35.1")
+                implementation("org.jetbrains.exposed:exposed-jdbc:0.35.1")
+
+                implementation("org.postgresql:postgresql:42.2.2")
+
+                implementation("com.zaxxer:HikariCP:3.4.2")
             }
         }
         val jvmTest by getting
