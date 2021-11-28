@@ -34,7 +34,10 @@ suspend inline fun <reified T> post(body: Any, vararg paths: String): T =
 suspend fun websocket(vararg path: String, block: suspend DefaultClientWebSocketSession.() -> Unit) = jsonClient.webSocket(request = {
   url {
     takeFrom(endpoint)
-    protocol = URLProtocol.WS
+    protocol = when (protocol) {
+      URLProtocol.HTTPS -> URLProtocol.WSS
+      else -> URLProtocol.WS
+    }
     path(*path)
   }
 }, block = block)
