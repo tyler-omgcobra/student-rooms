@@ -1,25 +1,87 @@
 package org.omgcobra.room
 
 import kotlinx.browser.window
-import kotlinx.html.InputType
-import org.omgcobra.api.get
+import kotlinx.coroutines.*
+import org.omgcobra.RoomDTO
+import org.omgcobra.api.doGet
 import org.omgcobra.hooks.useLaunch
-import org.omgcobra.hooks.useStateWithStorage
 import react.*
 import react.dom.*
 import react.router.dom.RouteComponentProps
 
 val Home: FunctionComponent<RouteComponentProps> = functionComponent(::Home.name) {
-  var rooms by useState(setOf<String>())
-  var user by useStateWithStorage("name", "Anonymous")
+  var rooms by useState(setOf<RoomDTO>())
+  var myRooms by useState(setOf<RoomDTO>())
 
-  useLaunch {
-    rooms = get("/rooms")
+  val (_, token) = useContext(AuthenticationContext)
+
+  useLaunch(token) {
+    rooms = token?.let { doGet("rooms", token = it) } ?: setOf()
+    myRooms = token?.let { doGet("myRooms", token = it) } ?: setOf()
   }
 
   p {
     +"Home"
   }
+  token?.let { jwt ->
+    fun attempt(stuffToDo: suspend CoroutineScope.() -> Unit) {
+      MainScope().launch {
+        try {
+          stuffToDo()
+          rooms = doGet("rooms", token = jwt)
+          myRooms = doGet("myRooms", token = jwt)
+        } catch (e: Exception) {
+          window.alert(e.message.toString())
+        }
+      }
+    }
+
+    rooms.forEach {
+      RoomLink {
+        attrs {
+          room = it
+        }
+        +" - ${it.owner}"
+      }
+    }
+
+    myRooms.forEach { room ->
+      RoomLink {
+        attrs {
+          this.room = room
+        }
+        +" - "
+        button {
+          +"Delete"
+          attrs {
+            onClick = {
+              attempt {
+                doGet<Unit>("room", room.name, "delete", token = jwt)
+              }
+            }
+          }
+        }
+        button {
+          +"Open"
+        }
+      }
+    }
+
+    button {
+      +"Create Room"
+      attrs {
+        onClick = {
+          window.prompt("Room name", default = "")?.takeUnless(String::isEmpty)?.let {
+            attempt {
+              doGet<Unit>("room", it, "create", token = jwt)
+            }
+          }
+        }
+      }
+    }
+  }
+
+/*
   p {
     button {
       attrs {
@@ -30,27 +92,5 @@ val Home: FunctionComponent<RouteComponentProps> = functionComponent(::Home.name
       +"Welcome!"
     }
   }
-
-  p {
-    label {
-      +"User"
-    }
-    input(InputType.text) {
-      attrs {
-        value = user
-        name = "user"
-        onChange = {
-          user = it.target.asDynamic().value as String
-        }
-      }
-    }
-  }
-
-  rooms.forEach {
-    p {
-      a(href = "/room/$it", target = "_blank") {
-        +it
-      }
-    }
-  }
+*/
 }

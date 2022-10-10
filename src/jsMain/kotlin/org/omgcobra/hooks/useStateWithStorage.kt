@@ -29,8 +29,8 @@ fun <T> useStateWithStorage(
     key: String,
     default: T,
     storage: Storage = localStorage,
-    encoder: (T) -> String = { JSON.stringify(it) },
-    decoder: (String?) -> T? = { it?.let { it1 -> JSON.parse<T>(it1) } }
+    encoder: (T) -> String = JSON::stringify,
+    decoder: (String?) -> T? = { it?.let<String, T>(JSON::parse) }
 ): StorageDelegate<T> {
   var state by useState(default)
 

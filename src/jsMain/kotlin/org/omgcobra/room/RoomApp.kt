@@ -2,7 +2,6 @@ package org.omgcobra.room
 
 import kotlinx.browser.window
 import kotlinx.css.*
-import kotlinx.html.InputType
 import kotlinx.serialization.ExperimentalSerializationApi
 import org.omgcobra.Chat
 import org.omgcobra.Welcome
@@ -32,9 +31,13 @@ object Routes {
   fun pageRoute(number: Int) = page.replace(":pageId", "$number")
 }
 
+data class Authentication(val username: String = "", val token: String? = null)
+val AuthenticationContext = createContext(Authentication())
+
 @ExperimentalSerializationApi
 val RoomApp: FunctionComponent<PropsWithChildren> = functionComponent(::RoomApp.name) {
   var user by useStateWithStorage("name", "")
+  var token by useState<String?>(null)
 
   val routes = mapOf<ComponentType<*>, String>(
       Home to Routes.home,
@@ -49,38 +52,49 @@ val RoomApp: FunctionComponent<PropsWithChildren> = functionComponent(::RoomApp.
       "Chat" to routes[Chat],
   )
 
-  HashRouter {
-    styledDiv {
-      css {
-        display = Display.flex
-        flexDirection = FlexDirection.column
-        height = 100.pct
-      }
-      ul {
-        topLinks.forEach {
-          li {
-            NavLink {
-              +it.key
-              attrs {
-                to = it.value ?: Routes.home
-                exact = true
+  AuthenticationContext.Provider(Authentication(user, token)) {
+    HashRouter {
+      styledDiv {
+        css {
+          display = Display.flex
+          flexDirection = FlexDirection.column
+          height = 100.pct
+        }
+        Login {
+          attrs {
+            initialUsername = user
+            loginHandler = { newUsername, newToken ->
+              user = newUsername
+              token = newToken
+            }
+          }
+        }
+        ul {
+          topLinks.forEach {
+            li {
+              NavLink {
+                +it.key
+                attrs {
+                  to = it.value ?: Routes.home
+                  exact = true
+                }
               }
             }
           }
         }
-      }
-      styledDiv {
-        css {
-          flex(1.0)
-          overflow = Overflow.auto
-        }
-        Switch {
-          routes.forEach {
-            Route {
-              attrs {
-                path = arrayOf(it.value)
-                exact = true
-                component = it.key
+        styledDiv {
+          css {
+            flex(1.0)
+            overflow = Overflow.auto
+          }
+          Switch {
+            routes.forEach {
+              Route {
+                attrs {
+                  path = arrayOf(it.value)
+                  exact = true
+                  component = it.key
+                }
               }
             }
           }

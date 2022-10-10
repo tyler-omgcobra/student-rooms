@@ -54,6 +54,7 @@ kotlin {
 
                 implementation("io.ktor:ktor-server-core:$ktorVersion")
                 implementation("io.ktor:ktor-auth:$ktorVersion")
+                implementation("io.ktor:ktor-auth-jwt:$ktorVersion")
                 implementation("io.ktor:ktor-html-builder:$ktorVersion")
                 implementation("io.ktor:ktor-locations:$ktorVersion")
                 implementation("io.ktor:ktor-server-host-common:$ktorVersion")
@@ -66,6 +67,7 @@ kotlin {
                 implementation("org.jetbrains.exposed:exposed-core:0.35.1")
                 implementation("org.jetbrains.exposed:exposed-dao:0.35.1")
                 implementation("org.jetbrains.exposed:exposed-jdbc:0.35.1")
+                implementation("org.jetbrains.exposed:exposed-java-time:0.35.1")
 
                 implementation("org.postgresql:postgresql:42.2.2")
 

@@ -22,14 +22,25 @@ val jsonClient = HttpClient {
 
 fun createPath(vararg paths: String) = listOf(endpoint, *paths).joinToString("/")
 
-suspend inline fun <reified T> get(vararg paths: String, builder: HttpRequestBuilder.() -> Unit = {}) =
-  jsonClient.get<T>(createPath(*paths), builder)
+suspend inline fun <reified T> doGet(vararg paths: String, token: String? = null, builder: HttpRequestBuilder.() -> Unit = {}) =
+  jsonClient.get<T>(createPath(*paths)) {
+    builder()
+    token?.let(::bearerToken)
+  }
 
-suspend inline fun <reified T> post(body: Any, vararg paths: String): T =
+suspend inline fun <reified T> doPost(body: Any, vararg paths: String, token: String? = null, builder: HttpRequestBuilder.() -> Unit = {}): T =
   jsonClient.post(createPath(*paths)) {
+    builder()
     contentType(ContentType.Application.Json)
     this.body = body
+    token?.let(::bearerToken)
   }
+
+fun HttpRequestBuilder.bearerToken(token: String) {
+  headers {
+    append(HttpHeaders.Authorization, "Bearer $token")
+  }
+}
 
 suspend fun websocket(vararg path: String, block: suspend DefaultClientWebSocketSession.() -> Unit) = jsonClient.webSocket(request = {
   url {
@@ -56,7 +67,7 @@ suspend fun ws(
         is Frame.Text -> block(frame.readText())
       }
     }
-  } catch (e: ClosedReceiveChannelException) {
+  } catch (_: ClosedReceiveChannelException) {
   } catch (e: Exception) {
     onFail(e)
   } finally {
