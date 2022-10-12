@@ -10,6 +10,13 @@ import react.*
 import react.dom.*
 import react.router.dom.*
 import styled.*
+import kotlin.js.Date
+
+fun parseJWT(token: String): dynamic {
+  val (_, url) = token.split(".")
+  val base64 = url.replace("-", "+").replace(".", "/")
+  return JSON.parse(window.atob(base64))
+}
 
 fun debounce(ms: Int = 100, fn: (dynamic) -> Unit): (dynamic) -> Unit {
   var timer: Int? = null
@@ -37,7 +44,16 @@ val AuthenticationContext = createContext(Authentication())
 @ExperimentalSerializationApi
 val RoomApp: FunctionComponent<PropsWithChildren> = functionComponent(::RoomApp.name) {
   var user by useStateWithStorage("name", "")
-  var token by useState<String?>(null)
+  var token by useStateWithStorage<String?>("token", null)
+
+  token?.let {
+    val exp = parseJWT(it)["exp"] as Double
+    val now = Date.now() / 1000
+
+    if (now > exp) {
+      token = null
+    }
+  }
 
   val routes = mapOf<ComponentType<*>, String>(
       Home to Routes.home,
@@ -62,7 +78,6 @@ val RoomApp: FunctionComponent<PropsWithChildren> = functionComponent(::RoomApp.
         }
         Login {
           attrs {
-            initialUsername = user
             loginHandler = { newUsername, newToken ->
               user = newUsername
               token = newToken

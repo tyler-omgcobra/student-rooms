@@ -14,14 +14,12 @@ import react.dom.*
 import styled.styledInput
 
 external interface LoginProps : Props {
-  var initialUsername: String
   var loginHandler: (String, String?) -> Unit
 }
 
 val Login: FunctionComponent<LoginProps> = functionComponent(::Login.name) { props ->
-  var username by useState(props.initialUsername)
   var password by useState("")
-  var token by useState<String?>(null)
+  val (username, token) = useContext(AuthenticationContext)
 
   if (token == null) {
     p {
@@ -31,7 +29,7 @@ val Login: FunctionComponent<LoginProps> = functionComponent(::Login.name) { pro
           type = InputType.text
           value = username
           onChangeFunction = { event ->
-            username = (event.target as HTMLInputElement).value
+            props.loginHandler((event.target as HTMLInputElement).value, token)
           }
         }
       }
@@ -56,7 +54,6 @@ val Login: FunctionComponent<LoginProps> = functionComponent(::Login.name) { pro
           MainScope().launch {
             try {
               val newToken = doPost<Map<String, String>>(UserCredential(username, password), "login")["token"]
-              token = newToken
               props.loginHandler(username, newToken)
             } catch (e: Exception) {
               window.alert(e.message.toString())
@@ -72,7 +69,6 @@ val Login: FunctionComponent<LoginProps> = functionComponent(::Login.name) { pro
     button {
       attrs {
         onClickFunction = {
-          token = null
           props.loginHandler(username, null)
         }
       }

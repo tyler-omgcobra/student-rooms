@@ -25,6 +25,7 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.neq
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.omgcobra.*
 import org.omgcobra.db.*
+import java.time.LocalDateTime
 import java.util.*
 import kotlin.collections.Collection
 import kotlin.collections.Map
@@ -55,6 +56,36 @@ private suspend fun Map<WebSocketSession, String>.updateParticipants() =
   keys.sendJson(UpdateParticipants(values.distinct().toSet()))
 
 val JWTPrincipal.username: String get() = payload.getClaim("username").asString()
+
+fun <T> withMySession(username: String, sessionId: Int, action: Transaction.(RoomSession) -> T): T = transaction {
+  when (val session = RoomSession.findById(sessionId)) {
+    null -> throw Exception("Session does not exist")
+    else -> {
+      val user = User.find(Users.name.eq(username)).singleOrNull()
+      when {
+        user != null && session.room.user.id == user.id -> action(session)
+        else                                            -> throw Exception("This isn't your session")
+      }
+    }
+  }
+}
+
+fun <T> withMyRoom(username: String, roomName: String, action: Transaction.(Room) -> T): T = transaction {
+  when (val room = Room.find(Rooms.name.eq(roomName)).singleOrNull()) {
+    null -> throw Exception("Room does not exist")
+    else -> {
+      val user = User.find(Users.name.eq(username)).singleOrNull()
+      when {
+        user != null && room.user.id == user.id -> action(room)
+        else                                    -> throw Exception("That isn't your room")
+      }
+    }
+  }
+}
+
+private val Int.seconds: Int get() = this * 1000
+private val Int.minutes: Int get() = this * 60.seconds
+private val Int.hours: Int get() = this * 60.minutes
 
 @ExperimentalSerializationApi
 @KtorExperimentalLocationsAPI
@@ -99,7 +130,7 @@ fun Application.configureRouting() {
           .withAudience(audience)
           .withIssuer(issuer)
           .withClaim("username", user.username)
-          .withExpiresAt(Date(System.currentTimeMillis() + 60_000))
+          .withExpiresAt(Date(System.currentTimeMillis() + 8.hours))
           .sign(Algorithm.HMAC256(secret))
 
         call.respond(hashMapOf("token" to token))
@@ -111,55 +142,73 @@ fun Application.configureRouting() {
         val principal = call.principal<JWTPrincipal>() ?: throw AuthenticationException()
         val username = principal.username
         val admin = username == "spruitt1"
-        var code = HttpStatusCode.OK
-        val response = transaction {
-          when {
-            !admin                                               -> {
-              code = HttpStatusCode.BadRequest
-              "You can't create rooms"
-            }
-            Room.find { Rooms.name.eq(it.request.name) }.empty() -> {
-              val room = Room.new {
-                name = it.request.name
-                user = User.find { Users.name.eq(username) }.single()
+        var code = HttpStatusCode.InternalServerError
+        val response = when {
+          !admin -> "You can't create rooms"
+          else -> transaction {
+            when {
+              Room.find { Rooms.name.eq(it.request.name) }.empty() -> {
+                val room = Room.new {
+                  name = it.request.name
+                  user = User.find { Users.name.eq(username) }.single()
+                }
+                code = HttpStatusCode.OK
+                "Created room ${room.id}"
               }
-              "Created room ${room.id}"
-            }
-
-            else                                                 -> {
-              code = HttpStatusCode.BadRequest
-              "That room already exists"
+              else -> "That room already exists"
             }
           }
         }
         call.respondText(response, status = code)
       }
 
-      get<RoomRequest.Delete> {
+      get<RoomRequest.Delete> { request ->
         val principal = call.principal<JWTPrincipal>() ?: throw AuthenticationException()
-        var code = HttpStatusCode.OK
-        val response = transaction {
-          when (val toDelete = Room.find(Rooms.name.eq(it.request.name)).singleOrNull()) {
-            null -> {
-              code = HttpStatusCode.BadRequest
-              "Room does not exist"
-            }
-            else -> {
-              val user = User.find(Users.name.eq(principal.username)).singleOrNull()
-              when {
-                user != null && toDelete.user.id == user.id -> {
-                  toDelete.delete()
-                  "Deleted room"
-                }
-                else -> {
-                  code = HttpStatusCode.BadRequest
-                  "That isn't your room"
-                }
-              }
-            }
-          }
+
+        try {
+          call.respondText(withMyRoom(principal.username, request.request.name) {
+            it.sessions.forEach(RoomSession::delete)
+            it.delete()
+            "Deleted room ${it.id}"
+          })
+        } catch (e: Exception) {
+          call.respondText(e.message ?: "Error", status = HttpStatusCode.InternalServerError)
         }
-        call.respondText(response, status = code)
+      }
+
+      get<RoomRequest.AllSessions> {
+        call.respond(transaction {
+          Room.find(Rooms.name.eq(it.request.name)).singleOrNull()?.sessions ?: throw Exception()
+        })
+      }
+
+      get<RoomRequest.NewSession> { request ->
+        val principal = call.principal<JWTPrincipal>() ?: throw AuthenticationException()
+
+        try {
+          call.respondText(withMyRoom(principal.username, request.request.name) {
+            val session = RoomSession.new {
+              room = it
+              opened = LocalDateTime.now()
+            }
+            "Opened session ${session.id} at ${session.opened}"
+          })
+        } catch (e: Exception) {
+          call.respondText(e.message ?: "Error", status = HttpStatusCode.InternalServerError)
+        }
+      }
+
+      get<SessionRequest.Close> { request ->
+        val principal = call.principal<JWTPrincipal>() ?: throw AuthenticationException()
+
+        try {
+          call.respondText(withMySession(principal.username, request.request.id) {
+            it.closed = LocalDateTime.now()
+            "Closed session ${it.id} at ${it.closed}"
+          })
+        } catch (e: Exception) {
+          call.respondText(e.message ?: "Error", status = HttpStatusCode.InternalServerError)
+        }
       }
 
       get("/rooms") {
@@ -221,6 +270,22 @@ class RoomRequest(val name: String) {
 
   @Location("/delete")
   class Delete(val request: RoomRequest)
+
+  @Location("/sessions")
+  class AllSessions(val request: RoomRequest)
+
+  @Location("/openSessions")
+  class OpenSessions(val request: RoomRequest)
+
+  @Location("/newSession")
+  class NewSession(val request: RoomRequest)
+}
+
+@KtorExperimentalLocationsAPI
+@Location("/session/{id}")
+class SessionRequest(val id: Int) {
+  @Location("/close")
+  class Close(val request: SessionRequest)
 }
 
 class AuthenticationException : RuntimeException()

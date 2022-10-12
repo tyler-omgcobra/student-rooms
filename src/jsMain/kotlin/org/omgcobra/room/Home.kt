@@ -42,6 +42,11 @@ val Home: FunctionComponent<RouteComponentProps> = functionComponent(::Home.name
           room = it
         }
         +" - ${it.owner}"
+        it.sessions.forEach { session ->
+          p {
+            +session.toString()
+          }
+        }
       }
     }
 
@@ -61,8 +66,34 @@ val Home: FunctionComponent<RouteComponentProps> = functionComponent(::Home.name
             }
           }
         }
-        button {
-          +"Open"
+        if (room.sessions.none { it.closed == null }) {
+          button {
+            +"Open"
+            attrs {
+              onClick = {
+                attempt {
+                  doGet<Unit>("room", room.name, "newSession", token = jwt)
+                }
+              }
+            }
+          }
+        }
+        room.sessions.forEach { session ->
+          div {
+            +session.toString()
+            if (session.closed == null) {
+              button {
+                +"Close"
+                attrs {
+                  onClick = {
+                    attempt {
+                      doGet("session", session.id.toString(), "close", token = jwt)
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
       }
     }

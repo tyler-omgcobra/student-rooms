@@ -37,9 +37,7 @@ suspend inline fun <reified T> doPost(body: Any, vararg paths: String, token: St
   }
 
 fun HttpRequestBuilder.bearerToken(token: String) {
-  headers {
-    append(HttpHeaders.Authorization, "Bearer $token")
-  }
+  header(HttpHeaders.Authorization, "Bearer $token")
 }
 
 suspend fun websocket(vararg path: String, block: suspend DefaultClientWebSocketSession.() -> Unit) = jsonClient.webSocket(request = {
